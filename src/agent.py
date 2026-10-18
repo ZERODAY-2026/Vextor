@@ -35,6 +35,10 @@ from src.memory import LocalMemoryVault, get_vault
 DETERMINISTIC_LEGAL_TRIGGERS = [
     "is this valid",
     "is it valid",
+    "contract valid",
+    "clause valid",
+    "valid in court",
+    "validity",
     "is this legal",
     "is it legal",
     "can i sue",
@@ -45,6 +49,8 @@ DETERMINISTIC_LEGAL_TRIGGERS = [
     "must i sign",
     "hold up in court",
     "legally binding",
+    "binding in court",
+    "null and void",
     "can i break this contract"
 ]
 
@@ -234,6 +240,8 @@ class LexiguardAgent:
             silent_resp = (
                 "[DOCUMENT IS SILENT]: The provided agreement contains no provisions regarding this matter."
             )
+            if refusal_msg:
+                silent_resp = f"⚠️ {refusal_msg}\n\n{silent_resp}"
             qa_ans = GroundedQAAnswer(
                 question=question,
                 answer=silent_resp,
