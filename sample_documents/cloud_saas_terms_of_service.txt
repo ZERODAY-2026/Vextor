@@ -1,0 +1,26 @@
+ENTERPRISE CLOUD SOFTWARE AS A SERVICE (SAAS) AGREEMENT
+
+Effective Date: January 1, 2026
+Provider: NovaCloud Analytics Inc. ("Provider")
+Customer: Acme Global Logistics Ltd. ("Customer")
+
+1. SUBSCRIPTION SERVICE
+1.1 Provider grants Customer a non-exclusive, non-transferable subscription to access the NovaCloud Analytics Platform.
+
+2. SERVICE AVAILABILITY AND UPTIME
+2.1 Provider targets an annual uptime service level of 99.0% excluding scheduled maintenance windows.
+2.2 Provider does not guarantee uninterrupted service and provides the platform strictly on an "AS IS" and "AS AVAILABLE" basis without warranty of any kind.
+
+3. FEES AND UNILATERAL PRICE INCREASES
+3.1 Subscription fees are billed annually in advance at USD 24,000 per annum.
+3.2 Provider reserves the absolute right to modify subscription pricing from time to time upon posting revised terms on its website without prior individual notice to Customer.
+
+4. LIMITATION OF LIABILITY
+4.1 In no event shall Provider's total aggregate liability arising out of or related to this Agreement exceed the sum of USD 100 actually paid by Customer in the preceding month.
+4.2 Provider shall not be liable for any lost profits, lost customer data, or incidental damages.
+
+5. CUSTOMER INDEMNIFICATION
+5.1 Customer shall indemnify, defend, and hold harmless Provider against all claims, regulatory penalties, legal fees, and liabilities arising out of Customer's data or use of the service.
+
+6. TERMINATION
+6.1 Provider may suspend or terminate Customer access immediately without notice if Provider suspects any violation of policy.
