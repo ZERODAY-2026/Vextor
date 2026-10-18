@@ -36,6 +36,23 @@ class TestLocalDocumentParser(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             LocalDocumentParser.read_file("nonexistent_file_xyz.txt")
 
+    def test_read_pdf_pymupdf(self):
+        """Verifies PDF parsing using PyMuPDF."""
+        pdf_path = "sample_documents/residential_lease_agreement.pdf"
+        self.assertTrue(os.path.exists(pdf_path))
+        data = LocalDocumentParser.read_file(pdf_path)
+        self.assertEqual(data["file_name"], "residential_lease_agreement.pdf")
+        self.assertGreater(len(data["full_text"]), 200)
+        self.assertGreaterEqual(data["page_count"], 1)
+
+    def test_read_docx(self):
+        """Verifies Word DOCX document parsing using python-docx."""
+        docx_path = "sample_documents/sample_nda.docx"
+        self.assertTrue(os.path.exists(docx_path))
+        data = LocalDocumentParser.read_file(docx_path)
+        self.assertEqual(data["file_name"], "sample_nda.docx")
+        self.assertIn("Confidential Information", data["full_text"])
+
 
 if __name__ == "__main__":
     unittest.main()

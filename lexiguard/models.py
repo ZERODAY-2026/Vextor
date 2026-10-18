@@ -42,6 +42,10 @@ class TriageClause(BaseModel):
     ambiguity_detected: Optional[str] = Field(None, description="Vague terminology (e.g., 'reasonable efforts', 'at sole discretion').")
     jurisdiction_dependency: Optional[str] = Field(None, description="Statutory or local jurisdiction context without drawing legal verdicts.")
 
+    @property
+    def plain_english_summary(self) -> str:
+        return self.plain_language_summary
+
 
 class SilentClauseAudit(BaseModel):
     """Audit of essential legal clauses that are conspicuously ABSENT or silent."""

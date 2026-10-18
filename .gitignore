@@ -46,3 +46,7 @@ Desktop.ini
 *_triage.md
 !sample_documents/*_triage.*
 privacy_audit.json
+
+# Local SQLite Vault & cache
+*.db
+data/

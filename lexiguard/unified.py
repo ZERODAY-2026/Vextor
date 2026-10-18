@@ -33,9 +33,9 @@ console = Console()
 def launch_ui(port: int = 8501, host: str = "localhost"):
     """Launches the Lexiguard Streamlit Modern UI Dashboard."""
     root_dir = Path(__file__).parent.parent
-    app_path = root_dir / "streamlit_app.py"
+    app_path = root_dir / "app.py"
     if not app_path.exists():
-        app_path = Path(__file__).parent / "app.py"
+        app_path = root_dir / "streamlit_app.py"
 
     print_banner()
     console.print(Panel(
