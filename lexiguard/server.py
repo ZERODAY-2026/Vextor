@@ -9,7 +9,9 @@ import socketserver
 import json
 import os
 import urllib.parse
+import re
 from .agent import LexiguardAgent
+
 
 PORT = 8080
 
@@ -202,7 +204,8 @@ HTML_PAGE = """<!DOCTYPE html>
       
       <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
         <span style="font-size: 0.85rem; color: var(--text-muted);">Or try a sample document:</span><br>
-        <button class="btn-sample" onclick="loadSample('residential_lease', event)">🏠 Residential Tenancy</button>
+        <button class="btn-sample" onclick="loadSample('residential_lease', event)">🏠 Residential Tenancy (TXT)</button>
+        <button class="btn-sample" onclick="loadSample('residential_lease_pdf', event)">📄 Residential Lease (PDF)</button>
         <button class="btn-sample" onclick="loadSample('software_employment', event)">💼 Employment Contract</button>
         <button class="btn-sample" onclick="loadSample('saas_terms', event)">☁️ SaaS Agreement</button>
       </div>
@@ -225,6 +228,22 @@ HTML_PAGE = """<!DOCTYPE html>
           <div id="overall-badge" class="risk-badge risk-HIGH_RISK">HIGH RISK</div>
         </div>
         <p id="exec-summary" style="line-height: 1.6; font-size: 0.98rem;"></p>
+      </div>
+
+      <!-- Grounded Q&A Card -->
+      <div class="card" style="margin-top: 1rem; border-color: rgba(6, 182, 212, 0.3);">
+        <h3 style="color: var(--accent-cyan); margin-bottom: 0.35rem;">💬 Grounded Q&A with Gemma (Passage Citation & Silence Detection)</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Ask questions about rights, penalties, or silent clauses. Grounded in verbatim citations.</p>
+        <div style="display: flex; gap: 0.75rem;">
+          <input type="text" id="qa-input" placeholder="e.g. Can the landlord enter without notice? Or: Does the agreement allow pets?" style="flex: 1; padding: 0.75rem 1rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; color: #fff; font-size: 0.92rem;">
+          <button class="btn-sample" style="background: var(--accent-cyan); color: #000; font-weight: 700; border: none; padding: 0.75rem 1.5rem;" onclick="askQuestion()">Ask Gemma</button>
+        </div>
+        <div id="qa-result" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid var(--accent-cyan);">
+          <div id="qa-answer" style="font-size: 0.95rem; line-height: 1.5; color: #f3f4f6;"></div>
+          <div id="qa-citation" style="margin-top: 0.5rem; font-style: italic; color: #34d399; font-size: 0.85rem;"></div>
+          <div id="qa-silence" style="margin-top: 0.5rem; font-weight: bold; color: #f59e0b; font-size: 0.85rem;"></div>
+          <div id="qa-escalation" style="margin-top: 0.5rem; color: #c084fc; font-size: 0.85rem;"></div>
+        </div>
       </div>
 
       <!-- Clauses Section -->
@@ -252,14 +271,23 @@ HTML_PAGE = """<!DOCTYPE html>
   </footer>
 
   <script>
+    let activeFilePath = 'sample_documents/residential_lease_agreement.txt';
+
     async function loadSample(sampleType, event) {
-      event.stopPropagation();
+      if (event) event.stopPropagation();
       document.getElementById('loading').style.display = 'block';
       document.getElementById('results').style.display = 'none';
 
       try {
         const res = await fetch('/api/triage_sample?type=' + sampleType);
         const report = await res.json();
+        const map = {
+          'residential_lease': 'sample_documents/residential_lease_agreement.txt',
+          'residential_lease_pdf': 'sample_documents/residential_lease_agreement.pdf',
+          'software_employment': 'sample_documents/software_employment_contract.txt',
+          'saas_terms': 'sample_documents/cloud_saas_terms_of_service.txt'
+        };
+        activeFilePath = map[sampleType] || 'sample_documents/residential_lease_agreement.txt';
         renderReport(report);
       } catch (err) {
         alert('Triage Error: ' + err.message);
@@ -281,11 +309,51 @@ HTML_PAGE = """<!DOCTYPE html>
       try {
         const res = await fetch('/api/upload_triage', { method: 'POST', body: formData });
         const report = await res.json();
+        activeFilePath = 'sample_documents/' + (report.metadata ? report.metadata.filename : file.name);
         renderReport(report);
       } catch (err) {
-        alert('Triage Error: ' + err.message);
+        alert('Upload Triage Error: ' + err.message);
       } finally {
         document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    async function askQuestion() {
+      const input = document.getElementById('qa-input');
+      const q = input.value.trim();
+      if (!q) return;
+
+      const resBox = document.getElementById('qa-result');
+      const ansDiv = document.getElementById('qa-answer');
+      const citeDiv = document.getElementById('qa-citation');
+      const silDiv = document.getElementById('qa-silence');
+      const escDiv = document.getElementById('qa-escalation');
+
+      ansDiv.innerText = 'Consulting local Gemma model...';
+      citeDiv.innerText = '';
+      silDiv.innerText = '';
+      escDiv.innerText = '';
+      resBox.style.display = 'block';
+
+      try {
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_path: activeFilePath, question: q })
+        });
+        const data = await res.json();
+        ansDiv.innerText = data.answer || 'No response generated.';
+        if (data.citation) {
+          citeDiv.innerText = '✓ Verified Citation (L5): "' + data.citation.verbatim_quote + '"';
+        }
+        if (data.is_silent_in_document) {
+          silDiv.innerText = '⚠️ DOCUMENT IS SILENT (L7): Topic is completely absent from this contract.';
+        }
+        if (data.refusal_statement) {
+          escDiv.innerText = '🛡️ ' + data.refusal_statement;
+        }
+      } catch (e) {
+        ansDiv.innerText = 'Error: ' + e.message;
       }
     }
 
@@ -363,7 +431,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
 
 class LexiguardRequestHandler(http.server.BaseHTTPRequestHandler):
-    """Local-only HTTP Request Handler."""
+    """Local-only HTTP Request Handler with multipart upload and Q&A endpoints."""
 
     agent = LexiguardAgent()
 
@@ -380,6 +448,7 @@ class LexiguardRequestHandler(http.server.BaseHTTPRequestHandler):
             
             sample_file_map = {
                 "residential_lease": "sample_documents/residential_lease_agreement.txt",
+                "residential_lease_pdf": "sample_documents/residential_lease_agreement.pdf",
                 "software_employment": "sample_documents/software_employment_contract.txt",
                 "saas_terms": "sample_documents/cloud_saas_terms_of_service.txt"
             }
@@ -389,6 +458,71 @@ class LexiguardRequestHandler(http.server.BaseHTTPRequestHandler):
             try:
                 report = self.agent.triage_document(sample_path)
                 data = report.model_dump()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/upload_triage":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                content_type = self.headers.get("Content-Type", "")
+                post_data = self.rfile.read(content_length)
+
+                filename = "uploaded_document.txt"
+                file_bytes = post_data
+
+                # Parse multipart/form-data
+                if "multipart/form-data" in content_type and "boundary=" in content_type:
+                    boundary = content_type.split("boundary=")[-1].strip().encode()
+                    parts = post_data.split(b"--" + boundary)
+                    for part in parts:
+                        if b"filename=" in part:
+                            header_part, _, body_part = part.partition(b"\r\n\r\n")
+                            header_str = header_part.decode("utf-8", errors="ignore")
+                            match = re.search(r'filename="([^"]+)"', header_str)
+                            if match:
+                                filename = match.group(1)
+                            file_bytes = body_part.rstrip(b"\r\n--")
+                            break
+
+                ext = os.path.splitext(filename)[1].lower() or ".txt"
+                temp_path = os.path.join("sample_documents", f"_uploaded_eval{ext}")
+                with open(temp_path, "wb") as f:
+                    f.write(file_bytes)
+
+                report = self.agent.triage_document(temp_path)
+                data = report.model_dump()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+        elif parsed.path == "/api/ask":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                post_data = self.rfile.read(content_length)
+                req_json = json.loads(post_data.decode("utf-8"))
+                file_path = req_json.get("file_path", "sample_documents/residential_lease_agreement.txt")
+                question = req_json.get("question", "")
+
+                qa = self.agent.answer_question(file_path, question)
+                data = qa.model_dump()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -413,3 +547,4 @@ def run_server(port: int = PORT):
 
 if __name__ == "__main__":
     run_server()
+

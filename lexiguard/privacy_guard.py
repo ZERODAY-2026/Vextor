@@ -157,3 +157,29 @@ class PrivacyGuard:
                 loopback.append(c)
         return {"loopback": loopback, "remote_outbound": remote, "total": len(conns)}
 
+    def generate_audit_log(self, export_path: str = None) -> Dict[str, Any]:
+        """Generates a verifiable snapshot audit log of current process network isolation."""
+        path = export_path or self.audit_log_path
+        conns = self.check_active_connections()
+        isolated, msg = self.verify_offline_environment()
+
+        proof = {
+            "audit_timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "privacy_guarantee": "100% On-Device Local Processing",
+            "remote_network_requests": len(conns["remote_outbound"]),
+            "external_network_requests": len(conns["remote_outbound"]),
+            "loopback_connections": len(conns["loopback"]),
+            "allowed_hosts_used": list(self.ALLOWED_HOSTS),
+            "environment_mode": "Air-Gapped" if isolated else "Localhost Isolated",
+            "environment_details": msg,
+            "compliance_status": "PASSED (Zero Outbound Telemetry)" if len(conns["remote_outbound"]) == 0 else "FAILED",
+        }
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(proof, f, indent=2)
+        except Exception:
+            pass
+
+        return proof
+

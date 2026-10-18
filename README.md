@@ -2,9 +2,10 @@
 
 [![ZeroDay OSS Hacktoberfest 2026](https://img.shields.io/badge/ZeroDay_OSS-Hacktoberfest_2026_PS2-cyan.svg)](https://iiitdwd.ac.in)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![LLM: Google Gemma Edge](https://img.shields.io/badge/LLM-Google_Gemma_Edge_(E2B%2FE4B)-green.svg)](https://ollama.com)
+[![LLM: Google Gemma Edge](https://img.shields.io/badge/LLM-Google_Gemma_2_(2B)-green.svg)](https://ollama.com)
 [![Privacy: 100% On-Device](https://img.shields.io/badge/Privacy-100%25_On--Device_Local-brightgreen.svg)](#-privacy-guarantee--network-isolation-l9)
-[![Checkpoint: 1](https://img.shields.io/badge/Status-Checkpoint_1_Completed-orange.svg)](#-checkpoint-1-progress--status)
+[![UI: Streamlit Studio](https://img.shields.io/badge/UI-Streamlit_Studio-red.svg)](#-streamlit-studio-ui)
+[![Status: Unified Package](https://img.shields.io/badge/Package-lexiguard_CLI_%26_GUI-orange.svg)](#-unified-software-packaging)
 
 **Project Name:** Lexiguard  
 **Track:** Problem Statement 2 (PS2) — Agentic AI: Private Legal Document Triage Agent  
@@ -25,6 +26,7 @@ Build a **privacy-first, fully on-device AI agent** powered by a **Google Gemma 
 4. Conspicuously detect **silent clauses** (essential legal protections that are missing).
 5. Ground every finding in identifiable, verbatim source passages.
 6. Strictly avoid presenting output as legal advice and safely escalate to licensed attorneys.
+7. Package all components into a unified, installable desktop utility software with modern GUI.
 
 ---
 
@@ -32,87 +34,109 @@ Build a **privacy-first, fully on-device AI agent** powered by a **Google Gemma 
 
 | PS2 Mandate | Meaning & Implementation in Lexiguard | Status |
 | :--- | :--- | :---: |
-| **On-Device Privacy (L9)** | 100% of document parsing, embeddings, chunking, and LLM inference stays on localhost. No cloud models, remote APIs, or telemetry. | ✅ Verified |
-| **Google Gemma Edge (L10)** | Powered by Google Gemma edge models (`gemma4:e2b` / `gemma:2b`) running locally via Ollama. | ✅ Integrated |
+| **On-Device Privacy (L9)** | 100% of document parsing, chunking, and LLM inference stays on localhost. No cloud models, remote APIs, or telemetry. | ✅ Verified |
+| **Google Gemma Edge (L10)** | Powered by Google Gemma 2 (2B) (`gemma2:2b`) running locally via Ollama with dynamic runtime auto-discovery. | ✅ Integrated |
 | **3-Tier Clause Breakdown (L6)** | Strictly separates: (1) Literal Statement, (2) Practical Interpretation, and (3) Practical Concern/Risk. | ✅ Built |
 | **Source Grounding (L5)** | Verbatim quotes verified against original source text; flags when the document is silent. | ✅ Verified |
-| **Silent Clause Audit** | Audits critical missing protections (e.g., notice periods, cure windows, deposit refund timelines). | ✅ Built |
+| **Silent Clause Audit (L7)** | Audits critical missing protections (e.g., notice periods, cure windows, deposit refund timelines). | ✅ Built |
 | **Safe Legal Escalation (L8)** | Refuses enforceability and legality verdicts; formulates precise escalation questions for licensed legal counsel. | ✅ Built |
+| **Unified Packaging** | Consolidated into a single `lexiguard` CLI command suite and Streamlit Studio application. | ✅ Completed |
 
 ---
 
-## 🚀 Checkpoint 1 Progress & Status
+## 💻 Streamlit Studio UI
 
-For **Checkpoint 1**, the core functional pipeline has been implemented, validated, and verified offline:
+Lexiguard features a modern, dark-themed, cyber-legal **Streamlit Studio** dashboard designed with glassmorphism aesthetics and micro-animations.
 
-- [x] **Local Document Parser (`LocalDocumentParser`)**: Pure offline PDF (`pypdf`) and plaintext/markdown reader with heading and clause segmentation.
-- [x] **Gemma Triage Agent (`LexiguardAgent`)**: Structured 3-tier analysis engine connected to local Gemma via `ollama-python` with deterministic fallback.
-- [x] **Socket-Level Privacy Auditor (`PrivacyGuard`)**: Real-time process socket monitor guaranteeing 0 outbound remote connections.
-- [x] **Terminal User Interface (`lexiguard.cli`)**: Interactive, color-coded Rich CLI with risk matrices, grounded Q&A, and JSON/Markdown export.
-- [x] **Localhost Web Dashboard (`lexiguard.server`)**: Self-contained, responsive local web UI (Port 8080) with glassmorphic dark-mode aesthetics.
-- [x] **Automated Test Suite (`tests/`)**: 9/9 automated unit, integration, privacy, and adversarial prompt-injection tests passing.
-- [x] **Open Source Deliverable**: Licensed under the official Apache-2.0 open-source license.
-
-*(Note: Detailed Mermaid sequence diagrams, extended CUAD statutory benchmarks, and multi-document comparison charts will be expanded in subsequent checkpoints as the project progresses).*
+### Key Studio Modules:
+1. **📋 Document Triage & Clause Auditor (Gates L1–L4, L6):**
+   - Drag-and-drop ingestion for PDF and TXT contracts.
+   - Overall Risk Score gauge (High Risk, Caution Amber, Low Risk).
+   - Plain-English Executive Summary written for non-lawyers.
+   - Filterable 3-tier clause breakdown with verbatim quotes and practical dangers.
+   - Silent clause audit highlighting omitted statutory protections.
+   - 1-click JSON and Markdown report export.
+2. **💬 Grounded Legal Q&A (Gates L5, L7, L8):**
+   - Ask natural language questions with 100% verbatim passage citations (L5).
+   - Silence detector: explicitly alerts when a topic is omitted from the contract (L7).
+   - Enforceability guard: refuses court legality determinations and directs to legal aid (L8).
+3. **⚖️ Contract Diff & Redlining Agent:**
+   - Compares Draft A vs Draft B (e.g., original lease vs landlord's revised draft).
+   - Detects stealth amendments, added tenant restrictions, and removed protections.
+   - Calculates net asymmetric risk shift percentage.
+4. **🛡️ Air-Gap Privacy & Socket Monitor (Gate L9):**
+   - Live socket audit confirming 0 remote outbound connections.
+   - Export signed `privacy_audit.json` cryptographic evidence for hackathon judges.
+5. **🏆 Judges 10-Gate Evaluation Suite:**
+   - 1-click interactive evaluation runner testing all 10 rubric gates in real-time.
 
 ---
 
-## 🛠️ Technology Stack
+## 📦 Unified Software Packaging
 
-- **Core Language:** Python 3.10+ (Tested on Python 3.15)
-- **Local LLM Engine:** Google Gemma Edge Models (`gemma4:e2b` / `gemma:2b`) via Ollama (`http://localhost:11434`)
-- **Python LLM Client:** `ollama-python >= 0.4.0`
-- **Data Schemas & Validation:** `pydantic >= 2.7.0`
-- **Document Parsing:** `pypdf >= 5.0.0`
-- **CLI & Formatting:** `rich >= 13.7.0`
-- **System & Network Monitoring:** `psutil >= 5.9.0`
+All modular components are consolidated under the unified `lexiguard` console command and Python package:
+
+```
+lexiguard
+├── ui         Launch the interactive Streamlit Studio UI
+├── triage     Analyze a legal contract (.pdf or .txt) for risks and missing clauses
+├── ask        Ask a grounded question with strict verbatim citations (L5)
+├── compare    Perform two-version semantic diff redlining (Draft A vs Draft B)
+├── demo       Execute the turnkey 10-gate judge evaluation suite
+├── audit      Verify air-gap isolation and generate signed socket proof
+├── web        Launch the lightweight zero-dependency local HTTP web server
+└── benchmark  Measure on-device latency, token speed, and RAM envelope
+```
 
 ---
 
 ## ⚡ Quickstart Guide
 
-### 1. Clone & Set Up Environment
+### 1. Clone & Install
 ```powershell
 git clone https://github.com/abhisheksingh1729/lexiguard.git
 cd lexiguard
-pip install -r requirements.txt
+pip install -e .
+```
+*(Or install requirements directly: `pip install -r requirements.txt`)*
+
+### 2. Pull Google Gemma 2 Model
+Ensure [Ollama](https://ollama.com) is installed and running locally:
+```powershell
+ollama pull gemma2:2b
 ```
 
-### 2. Pull Local Google Gemma Model
-Ensure [Ollama](https://ollama.com) is running locally, then pull the Google Gemma edge model:
+### 3. Launch Streamlit Studio (Modern Web UI)
 ```powershell
-ollama pull gemma4:e2b
-# Or for ultra-low resource hardware:
-ollama pull gemma:2b
+lexiguard ui
+# Or directly via streamlit:
+streamlit run streamlit_app.py
+```
+Open your browser at **`http://localhost:8501`**.
+
+### 4. Run Turnkey Judge Demonstration (Recommended for Evaluators)
+```powershell
+lexiguard demo
+# Or standalone:
+python demo_judge.py
 ```
 
-### 3. Run Document Triage via Terminal CLI
+### 5. Unified CLI Usage Examples
 ```powershell
-# Triage a sample residential lease with JSON & Markdown export
-python -m lexiguard.cli --file sample_documents/residential_lease_agreement.txt --export
+# 1. Triage a PDF contract with JSON & Markdown export
+lexiguard triage sample_documents/residential_lease_agreement.pdf --export
 
-# Triage a software employment contract with non-compete detection
-python -m lexiguard.cli --file sample_documents/software_employment_contract.txt
-```
+# 2. Ask a grounded question with verbatim citations
+lexiguard ask sample_documents/residential_lease_agreement.txt "Can landlord enter without notice?"
 
-### 4. Run Grounded Q&A (Testing Citations & Document Silence)
-```powershell
-# Ask a question answered by the contract (verbatim citation)
-python -m lexiguard.cli --file sample_documents/residential_lease_agreement.txt --ask "Can the landlord enter without notice?"
+# 3. Compare two versions for stealth modifications
+lexiguard compare sample_documents/residential_lease_agreement.txt sample_documents/residential_lease_revised_v2.txt
 
-# Ask a question on an omitted topic (document silence detection)
-python -m lexiguard.cli --file sample_documents/residential_lease_agreement.txt --ask "Does the lease allow pets?"
-```
+# 4. Verify air-gap isolation and export signed proof
+lexiguard audit
 
-### 5. Launch the Local Web Dashboard
-```powershell
-python -m lexiguard.server
-```
-Navigate to **`http://localhost:8080`** in your browser.
-
-### 6. Run the Automated Test Suite
-```powershell
-python -m unittest discover tests -v
+# 5. Measure edge performance and RAM footprint
+lexiguard benchmark
 ```
 
 ---

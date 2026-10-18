@@ -37,14 +37,43 @@ class LexiguardAgent:
     Strictly isolated to localhost; powered by Google Gemma edge models.
     """
 
-    DEFAULT_LOCAL_MODEL = "gemma4:e2b"
+    DEFAULT_LOCAL_MODEL = "gemma2:2b"
     FALLBACK_LOCAL_MODEL = "gemma:2b"
 
+    @classmethod
+    def discover_local_model(cls, host: str = "http://localhost:11434") -> str:
+        """
+        Dynamically discovers the best available Google Gemma model on localhost Ollama.
+        Prioritizes gemma2:2b, gemma2, gemma:2b, gemma4:e2b.
+        """
+        try:
+            client = ollama.Client(host=host)
+            model_list = client.list()
+            installed_models = []
+            if hasattr(model_list, "models"):
+                installed_models = [m.model for m in model_list.models]
+            elif isinstance(model_list, dict) and "models" in model_list:
+                installed_models = [m.get("name", m.get("model", "")) for m in model_list["models"]]
+
+            preferences = ["gemma2:2b", "gemma2", "gemma:2b", "gemma4:e2b", "gemma2:7b", "gemma:7b"]
+            for pref in preferences:
+                for inst in installed_models:
+                    if inst == pref or inst.startswith(pref) or (":" in pref and inst.split(":")[0] == pref.split(":")[0]):
+                        return inst
+            for inst in installed_models:
+                if "gemma" in inst.lower():
+                    return inst
+            if installed_models:
+                return installed_models[0]
+        except Exception:
+            pass
+        return cls.DEFAULT_LOCAL_MODEL
+
     def __init__(self, model_name: Optional[str] = None, ollama_host: str = "http://localhost:11434"):
-        self.model_name = model_name or self.DEFAULT_LOCAL_MODEL
         self.ollama_host = ollama_host
         self.client = ollama.Client(host=self.ollama_host)
         self.privacy_guard = PrivacyGuard()
+        self.model_name = model_name or self.discover_local_model(self.ollama_host)
 
     def triage_document(self, file_path: str, document_type_hint: str = "general") -> DocumentTriageReport:
         """
@@ -72,9 +101,24 @@ class LexiguardAgent:
             estimated_word_count=words
         )
 
+        if words < 15:
+            # Minimal/empty document handling: not a legal contract
+            privacy_proof = self.privacy_guard.end_audit(file_path)
+            return DocumentTriageReport(
+                metadata=metadata,
+                overall_risk_rating=SeverityLevel.STANDARD_LOW,
+                executive_summary="Document content is minimal or non-contractual. No binding legal clauses identified.",
+                clauses=[],
+                silent_clauses=[],
+                escalations=[],
+                adversarial_warnings=adversarial_warnings,
+                privacy_audit=privacy_proof
+            )
+
         # Step 4: Local Gemma Inference
         self.privacy_guard.audit_checkpoint("Local Gemma Inference")
         raw_result = self._run_local_inference(full_text, metadata.detected_document_type)
+
 
         # Step 5: Grounding Verification (L5)
         self.privacy_guard.audit_checkpoint("Passage Grounding Verification")
@@ -220,7 +264,30 @@ class LexiguardAgent:
             is_verified_in_source=best_quote[:50] in full_text
         )
 
-        answer_text = f"Based on {best_section}: The document states: \"{best_quote[:180]}...\"."
+        # Use local Gemma to synthesize grounded plain-language answer
+        gemma_synthesis = None
+        try:
+            qa_user_msg = (
+                f"You are Lexiguard. Answer the user question in 1-2 plain language sentences based strictly on the excerpt below.\n\n"
+                f"Excerpt ({best_section}):\n\"{best_quote}\"\n\n"
+                f"Question: {question}"
+            )
+            qa_resp = self.client.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": qa_user_msg}],
+                options={"temperature": 0.1, "num_ctx": 2048, "num_predict": 120}
+            )
+            ans = qa_resp["message"]["content"].strip()
+            if ans:
+                gemma_synthesis = ans
+        except Exception:
+            pass
+
+        if gemma_synthesis:
+            answer_text = f"Based on {best_section}: {gemma_synthesis}"
+        else:
+            answer_text = f"Based on {best_section}: The document states: \"{best_quote[:180]}...\"."
+
         if refusal:
             answer_text += " Note that while this is what the document literally states, its legal validity or enforceability cannot be determined by this tool."
 
@@ -270,7 +337,7 @@ class LexiguardAgent:
         user_prompt = get_triage_user_prompt(text, doc_type)
 
         try:
-            # Query local Ollama server
+            # Query local Ollama server with optimized context and token limit
             response = self.client.chat(
                 model=self.model_name,
                 messages=[
@@ -278,11 +345,18 @@ class LexiguardAgent:
                     {"role": "user", "content": user_prompt}
                 ],
                 format="json",
-                options={"temperature": 0.1, "num_ctx": 4096}
+                options={"temperature": 0.1, "num_ctx": 2048, "num_predict": 750}
             )
 
             response_text = response["message"]["content"]
-            return self._extract_json(response_text)
+            result = self._extract_json(response_text)
+            if not result or not result.get("clauses"):
+                # If extraction was incomplete, combine with deterministic triage to guarantee zero failure
+                fallback = self._deterministic_local_triage(text, doc_type, "Model output incomplete")
+                for k, v in fallback.items():
+                    if not result.get(k):
+                        result[k] = v
+            return result
 
         except Exception as e:
             # If Ollama local model is starting up or in offline mock test,
