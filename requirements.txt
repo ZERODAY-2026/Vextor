@@ -1,0 +1,8 @@
+# Lexiguard - Private Legal Document Triage Agent
+# Pinned dependencies for reproducible offline environment
+
+ollama>=0.4.0
+pypdf>=5.0.0
+pydantic>=2.7.0
+rich>=13.7.0
+psutil>=5.9.0

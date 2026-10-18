@@ -1,0 +1,142 @@
+{
+  "metadata": {
+    "filename": "residential_lease_agreement.txt",
+    "detected_document_type": "Residential Tenancy Agreement",
+    "identified_parties": [
+      "Party A",
+      "Party B"
+    ],
+    "effective_dates_or_term": "As specified in agreement",
+    "governing_jurisdiction_stated": "See dispute resolution section",
+    "character_count": 1935,
+    "estimated_word_count": 313
+  },
+  "overall_risk_rating": "HIGH_RISK",
+  "executive_summary": "Preliminary triage completed using local rule-engine and on-device parser (local engine note: Failed to connect to Ollama. Please check that Ollama is dow...). Identified 3 key operational clauses and assessed document balance.",
+  "clauses": [
+    {
+      "clause_id": "CLS-001",
+      "category": "Termination & Forfeiture",
+      "plain_language_summary": "Allows one party to terminate or seize funds without adequate advance notice or cure opportunity.",
+      "explicit_statement": "SECURITY DEPOSIT & FORFEITURE\n2",
+      "potential_interpretation": "Operates strictly under forfeit.",
+      "practical_concern": "Tenant/Obligor risks immediate loss of rights or security deposit without recourse.",
+      "severity": "HIGH_RISK",
+      "citation": {
+        "verbatim_quote": "SECURITY DEPOSIT & FORFEITURE\n2",
+        "section_reference": "Detected via keyword 'forfeit'",
+        "page_number": 1,
+        "is_verified_in_source": true
+      },
+      "ambiguity_detected": null,
+      "jurisdiction_dependency": null
+    },
+    {
+      "clause_id": "CLS-002",
+      "category": "Unilateral Discretion",
+      "plain_language_summary": "Grants one party exclusive decision-making authority without objective standards.",
+      "explicit_statement": "2 If the Lessee defaults on rent payment by more than 3 days, or breaches any house rule, the entire security deposit shall be forfeited immediately to the Lessor at the Lessor's sole and absolute discretion without prior notice",
+      "potential_interpretation": "Operates strictly under absolute discretion.",
+      "practical_concern": "Counterparty may impose unexpected fees, rules, or deductions arbitrarily.",
+      "severity": "CAUTION_AMBER",
+      "citation": {
+        "verbatim_quote": "2 If the Lessee defaults on rent payment by more than 3 days, or breaches any house rule, the entire security deposit shall be forfeited immediately to the Lessor at the Lessor's sole and absolute discretion without prior notice",
+        "section_reference": "Detected via keyword 'absolute discretion'",
+        "page_number": 1,
+        "is_verified_in_source": true
+      },
+      "ambiguity_detected": null,
+      "jurisdiction_dependency": null
+    },
+    {
+      "clause_id": "CLS-003",
+      "category": "Governing Law & Dispute Resolution",
+      "plain_language_summary": "Specifies the legal court or arbitration venue for dispute resolution.",
+      "explicit_statement": "GOVERNING LAW & DISPUTE RESOLUTION\n6",
+      "potential_interpretation": "Operates strictly under governing law.",
+      "practical_concern": "Ensure the venue is accessible and not located in a distant jurisdiction.",
+      "severity": "STANDARD_LOW",
+      "citation": {
+        "verbatim_quote": "GOVERNING LAW & DISPUTE RESOLUTION\n6",
+        "section_reference": "Detected via keyword 'governing law'",
+        "page_number": 1,
+        "is_verified_in_source": true
+      },
+      "ambiguity_detected": null,
+      "jurisdiction_dependency": null
+    }
+  ],
+  "silent_clauses": [
+    {
+      "topic": "Security Deposit Refund Timeline & Deductions",
+      "is_silent": true,
+      "risk_implication": "Document must specify the exact number of days (e.g. 15-30 days) to return the deposit and require itemized written receipts for any deductions.",
+      "suggested_inquiry": "Clarify in writing whether the agreement includes provisions for security deposit refund timeline & deductions."
+    },
+    {
+      "topic": "Maintenance & Habitability Obligations",
+      "is_silent": true,
+      "risk_implication": "Clear definition of structural/major repairs borne by landlord versus minor tenant repairs.",
+      "suggested_inquiry": "Clarify in writing whether the agreement includes provisions for maintenance & habitability obligations."
+    },
+    {
+      "topic": "Automatic Renewal & Rent Escalation Caps",
+      "is_silent": true,
+      "risk_implication": "Explicit terms regarding renewal notice timelines and limits on arbitrary rent increases.",
+      "suggested_inquiry": "Clarify in writing whether the agreement includes provisions for automatic renewal & rent escalation caps."
+    }
+  ],
+  "escalations": [
+    {
+      "trigger_clause": "CLS-001 (Termination & Forfeiture)",
+      "risk_description": "Unilateral or severe terms identified in: 'Allows one party to terminate or seize funds without adequate advance notice or cure opportunity.'",
+      "recommended_specialist": "Qualified Contract Attorney / Legal Specialist",
+      "specific_questions_for_counsel": [
+        "Does the penalty or restriction in CLS-001 exceed statutory limits in this jurisdiction?",
+        "Can this clause be revised to require mutual notice and a reasonable cure period?"
+      ]
+    }
+  ],
+  "adversarial_warnings": [],
+  "legal_disclaimer": "IMPORTANT LEGAL NOTICE: Lexiguard is an AI-powered preliminary document triage assistant designed for educational document comprehension and issue identification. Lexiguard is NOT a lawyer, does NOT provide legal advice, and cannot determine the legal validity, enforceability, or binding nature of any contract. Do not sign or take legal action based solely on this automated triage. Consult a licensed legal practitioner or advocate in your jurisdiction for definitive legal counsel.",
+  "privacy_audit": {
+    "document_name": "residential_lease_agreement.txt",
+    "audit_timestamp": "2026-10-18 05:23:42 UTC",
+    "duration_seconds": 4.046,
+    "privacy_guarantee": "100% On-Device Local Processing",
+    "remote_network_requests": 0,
+    "external_network_requests": 0,
+    "allowed_hosts_used": [
+      "127.0.0.1",
+      "::1",
+      "localhost"
+    ],
+    "checkpoints_verified": [
+      {
+        "checkpoint": "Local Ingestion",
+        "status": "VERIFIED_LOCAL",
+        "active_sockets_count": 0,
+        "timestamp": 1792301018.3145962
+      },
+      {
+        "checkpoint": "Adversarial Pre-Scan",
+        "status": "VERIFIED_LOCAL",
+        "active_sockets_count": 0,
+        "timestamp": 1792301018.3163095
+      },
+      {
+        "checkpoint": "Local Gemma Inference",
+        "status": "VERIFIED_LOCAL",
+        "active_sockets_count": 0,
+        "timestamp": 1792301018.3175576
+      },
+      {
+        "checkpoint": "Passage Grounding Verification",
+        "status": "VERIFIED_LOCAL",
+        "active_sockets_count": 0,
+        "timestamp": 1792301022.355971
+      }
+    ],
+    "compliance_status": "PASSED (Zero Outbound Telemetry)"
+  }
+}

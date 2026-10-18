@@ -1,0 +1,27 @@
+EMPLOYMENT AND PROPRIETARY INFORMATION AGREEMENT
+
+This Agreement is entered into on October 15, 2026, by and between:
+EMPLOYER: Apex Cloud Systems Private Limited, having its office at Electronic City, Bengaluru ("Company")
+AND
+EMPLOYEE: Mr. Siddharth Rao, resident of Whitefield, Bengaluru ("Employee").
+
+1. POSITION AND PROBATION
+1.1 The Employee is appointed as Senior Software Engineer.
+1.2 The Employee shall undergo a probation period of 6 months, which may be extended indefinitely at the Company's sole discretion without explanation.
+
+2. COMPENSATION AND DEDUCTIONS
+2.1 Annual CTC shall be INR 18,00,000, inclusive of performance bonuses.
+2.2 The Company reserves the unilateral right to withhold, reduce, or deduct bonus and salary for any unapproved leave or project delay.
+
+3. POST-EMPLOYMENT NON-COMPETE RESTRICTION
+3.1 During employment and for a period of twenty-four (24) months following termination of employment for any reason, the Employee shall not directly or indirectly engage in, work for, consult for, or establish any business or company that operates in software, cloud computing, artificial intelligence, or related technologies anywhere in India or globally.
+
+4. INTELLECTUAL PROPERTY ASSIGNMENT
+4.1 The Employee hereby irrevocably assigns to the Company all worldwide rights, title, and interest in all software, inventions, code, designs, and patents created, conceived, or authored by the Employee during the term of employment, whether created during working hours, on weekends, or using personal equipment, without exception.
+
+5. TERMINATION AND NOTICE
+5.1 The Company may terminate the Employee's employment immediately without notice and without cause.
+5.2 The Employee must provide a minimum written notice period of ninety (90) days prior to resigning; failure to serve the full notice period empowers the Company to claim three months' gross salary as liquidated damages and withhold relieving letters.
+
+6. INDEMNITY
+6.1 The Employee agrees to defend, indemnify, and hold harmless the Company, its directors, and clients against any and all claims, customer losses, or software downtime arising out of any bug or error introduced by the Employee.
