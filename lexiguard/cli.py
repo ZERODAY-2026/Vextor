@@ -16,7 +16,13 @@ from rich.prompt import Prompt
 from rich import box
 
 from .agent import LexiguardAgent
-from .models import SeverityLevel, DocumentTriageReport
+from .diff_agent import LexiguardDiffAgent
+from .models import (
+    SeverityLevel,
+    DocumentTriageReport,
+    ContractComparisonReport,
+    GroundedQAAnswer
+)
 from .privacy_guard import PrivacyGuard
 
 
@@ -31,6 +37,77 @@ def print_banner():
     banner.append("🔒 100% On-Device Local Processing (Google Gemma Edge) | Zero Cloud Telemetry\n", style="italic green")
     banner.append("⚠️  Notice: Educational document comprehension tool. Not legal advice.", style="dim yellow")
     console.print(Panel(banner, border_style="cyan", box=box.ROUNDED))
+
+
+def render_qa_answer(qa: GroundedQAAnswer):
+    """Renders a grounded Q&A answer with strict non-legal advice boundary."""
+    console.print()
+    q_panel = Table(show_header=False, box=box.SIMPLE)
+    q_panel.add_column("Field", style="bold cyan", width=22)
+    q_panel.add_column("Value", style="white")
+
+    q_panel.add_row("User Question", qa.question)
+    q_panel.add_row("Triage Response", qa.answer)
+
+    if qa.citation:
+        cite_str = f"\"{qa.citation.verbatim_quote}\"\nSection: {qa.citation.section_reference or 'Unnumbered'}"
+        q_panel.add_row("Verified Citation (L5)", Text(cite_str, style="dim italic green"))
+
+    if qa.is_silent_in_document:
+        q_panel.add_row("Silence Status (L7)", Text("DOCUMENT IS SILENT (Topic omitted from contract)", style="bold yellow"))
+
+    if qa.refusal_statement:
+        q_panel.add_row("Boundary Notice (L8)", Text(qa.refusal_statement, style="bold red"))
+
+    if qa.ambiguity_or_jurisdiction_note:
+        q_panel.add_row("Jurisdiction Context", Text(qa.ambiguity_or_jurisdiction_note, style="cyan"))
+
+    if qa.suggested_counsel_question:
+        q_panel.add_row("Escalate to Counsel", Text(qa.suggested_counsel_question, style="bold magenta"))
+
+    console.print(Panel(q_panel, title="[bold]Grounded Document Query Response[/bold]", border_style="cyan", box=box.ROUNDED))
+
+
+def render_comparison_dashboard(report: ContractComparisonReport):
+    """Renders semantic redlining diff between two contract versions."""
+    meta_table = Table(show_header=False, box=box.SIMPLE)
+    meta_table.add_column("Field", style="bold cyan", width=22)
+    meta_table.add_column("Value", style="white")
+
+    shift_style = "bold red" if report.overall_risk_shift == SeverityLevel.HIGH_RISK else \
+                  "bold yellow" if report.overall_risk_shift == SeverityLevel.CAUTION_AMBER else "bold green"
+
+    meta_table.add_row("Original Document (A)", report.original_document)
+    meta_table.add_row("Revised Document (B)", report.revised_document)
+    meta_table.add_row("Risk Shift", Text(report.overall_risk_shift.value, style=shift_style))
+    meta_table.add_row("Summary of Revisions", report.summary_of_changes)
+
+    console.print(Panel(meta_table, title="[bold]Two-Version Contract Comparison (Semantic Diff)[/bold]", border_style="magenta", box=box.ROUNDED))
+
+    if report.stealth_concerns:
+        stealth_text = Text()
+        for sc in report.stealth_concerns:
+            stealth_text.append(f"🚨 {sc}\n", style="bold red")
+        console.print(Panel(stealth_text, title="[bold red]Stealth Clauses & Unfavorable Alterations[/bold red]", border_style="red", box=box.HEAVY))
+
+    diff_table = Table(title="Clause Changes & Liability Shifts", box=box.ROUNDED)
+    diff_table.add_column("Clause / Section", style="bold cyan", width=24)
+    diff_table.add_column("Change Type", justify="center", width=14)
+    diff_table.add_column("Risk Shift", justify="center", width=16)
+    diff_table.add_column("Practical Implication for User", style="white", width=55)
+
+    for ch in report.changes:
+        type_style = "bold green" if ch.change_type == "ADDED" else "bold red" if ch.change_type == "REMOVED" else "bold yellow"
+        risk_style = "bold red" if ch.risk_delta == "INCREASED_RISK" else "bold green" if ch.risk_delta == "REDUCED_RISK" else "dim"
+
+        diff_table.add_row(
+            ch.clause_topic,
+            Text(ch.change_type, style=type_style),
+            Text(ch.risk_delta, style=risk_style),
+            ch.practical_implication
+        )
+
+    console.print(diff_table)
 
 
 def render_triage_dashboard(report: DocumentTriageReport):
@@ -187,6 +264,9 @@ def export_report(report: DocumentTriageReport, base_filename: str):
 def main():
     parser = argparse.ArgumentParser(description="Lexiguard: Private Legal Document Triage Agent")
     parser.add_argument("--file", "-f", help="Path to local document (.pdf, .txt, .md)")
+    parser.add_argument("--compare", "-c", nargs=2, metavar=("DOC_A", "DOC_B"), help="Compare two versions of a document")
+    parser.add_argument("--ask", "-a", help="Ask a question about the document (--file required)")
+    parser.add_argument("--interactive", "-i", action="store_true", help="Start interactive grounded Q&A session")
     parser.add_argument("--model", "-m", default="gemma4:e2b", help="Local Gemma model name (default: gemma4:e2b)")
     parser.add_argument("--export", "-e", action="store_true", help="Export results to JSON and Markdown")
     parser.add_argument("--audit", action="store_true", help="Verify offline network isolation environment")
@@ -200,14 +280,47 @@ def main():
         console.print(f"Network Status: {status} - {msg}")
         return
 
+    if args.compare:
+        doc_a, doc_b = args.compare
+        console.print(f"[cyan]Initiating on-device two-version contract comparison...[/cyan]")
+        diff_agent = LexiguardDiffAgent()
+        report = diff_agent.compare_documents(doc_a, doc_b)
+        render_comparison_dashboard(report)
+        return
+
     if not args.file:
-        console.print("[yellow]Usage:[/yellow] python -m lexiguard.cli --file <path_to_document>")
-        console.print("[dim]Example: python -m lexiguard.cli --file sample_documents/residential_lease_agreement.txt[/dim]")
+        console.print("[yellow]Usage Options:[/yellow]")
+        console.print("  1. Triage a document:       python -m lexiguard.cli --file <path_to_doc>")
+        console.print("  2. Compare two drafts:      python -m lexiguard.cli --compare <original_doc> <revised_doc>")
+        console.print("  3. Ask grounded question:   python -m lexiguard.cli --file <path_to_doc> --ask \"question\"")
+        console.print("  4. Interactive Q&A:         python -m lexiguard.cli --file <path_to_doc> --interactive")
+        console.print("  5. Air-gap network audit:   python -m lexiguard.cli --audit")
         return
 
     agent = LexiguardAgent(model_name=args.model)
+
+    if args.ask:
+        console.print(f"[cyan]Running grounded query against {args.file}...[/cyan]")
+        qa = agent.answer_question(args.file, args.ask)
+        render_qa_answer(qa)
+        return
+
+    if args.interactive:
+        console.print(f"[bold green]Entering Interactive Grounded Q&A for {args.file}[/bold green]")
+        console.print("[dim]Type your question or 'exit' to quit. Lexiguard will answer strictly from the document text.[/dim]\n")
+        while True:
+            try:
+                q = Prompt.ask("[bold cyan]Question[/bold cyan]")
+                if not q or q.strip().lower() in ["exit", "quit", "q"]:
+                    break
+                qa = agent.answer_question(args.file, q.strip())
+                render_qa_answer(qa)
+                console.print()
+            except (KeyboardInterrupt, EOFError):
+                break
+        return
+
     console.print(f"[cyan]Initiating on-device triage with model: [bold]{args.model}[/bold]...[/cyan]")
-    
     report = agent.triage_document(args.file)
     render_triage_dashboard(report)
 

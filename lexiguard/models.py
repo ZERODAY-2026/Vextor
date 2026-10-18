@@ -106,3 +106,43 @@ class DocumentTriageReport(BaseModel):
             "offline_verified": True
         }
     )
+
+
+class GroundedQAAnswer(BaseModel):
+    """Document-grounded question response with non-legal-advice boundary (L5, L6, L7, L8)."""
+    question: str
+    answer: str
+    is_silent_in_document: bool = Field(False, description="True if the document does not address this question.")
+    is_enforceability_question: bool = Field(False, description="True if question asks to determine legality or enforceability.")
+    refusal_statement: Optional[str] = Field(None, description="Explicit refusal to declare legal validity/enforceability.")
+    citation: Optional[SourceCitation] = Field(None, description="Identifiable source quote supporting the answer.")
+    ambiguity_or_jurisdiction_note: Optional[str] = Field(None, description="Statutory or jurisdictional nuance.")
+    suggested_counsel_question: Optional[str] = Field(None, description="Recommended question for legal counsel.")
+
+
+class ComparisonClauseChange(BaseModel):
+    """Detailed change detected between two contract versions."""
+    clause_topic: str
+    change_type: str = Field(..., description="'ADDED', 'REMOVED', 'MODIFIED', or 'UNALTERED'")
+    risk_delta: str = Field(..., description="'INCREASED_RISK', 'REDUCED_RISK', or 'NEUTRAL'")
+    original_text_snippet: Optional[str] = None
+    revised_text_snippet: Optional[str] = None
+    practical_implication: str = Field(..., description="Plain-language explanation of what this change means for the user.")
+
+
+class ContractComparisonReport(BaseModel):
+    """Report comparing two versions of a contract (Semantic Redlining)."""
+    original_document: str
+    revised_document: str
+    summary_of_changes: str
+    overall_risk_shift: SeverityLevel
+    stealth_concerns: List[str] = Field(default_factory=list, description="Hidden traps or altered penalties introduced in revision.")
+    changes: List[ComparisonClauseChange] = Field(default_factory=list)
+    privacy_audit: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "mode": "100% On-Device Local Inference",
+            "remote_network_requests": 0,
+            "offline_verified": True
+        }
+    )
+

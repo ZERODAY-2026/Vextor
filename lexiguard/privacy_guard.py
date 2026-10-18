@@ -138,3 +138,22 @@ class PrivacyGuard:
             return False, "Host has active internet connectivity. Lexiguard will strictly isolate execution to localhost."
         except (socket.timeout, socket.error, OSError):
             return True, "Host is in fully offline air-gapped mode. No remote networks reachable."
+
+    @classmethod
+    def check_active_connections(cls) -> Dict[str, Any]:
+        """Audits current process sockets and categorizes into loopback vs remote."""
+        conns = cls._get_process_connections()
+        loopback = []
+        remote = []
+        for c in conns:
+            raddr = c.get("raddr")
+            if raddr:
+                ip, port = raddr
+                if ip in cls.ALLOWED_HOSTS:
+                    loopback.append(c)
+                else:
+                    remote.append(c)
+            else:
+                loopback.append(c)
+        return {"loopback": loopback, "remote_outbound": remote, "total": len(conns)}
+

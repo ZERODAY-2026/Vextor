@@ -18,7 +18,8 @@ from .models import (
     SourceCitation,
     SilentClauseAudit,
     EscalationItem,
-    SeverityLevel
+    SeverityLevel,
+    GroundedQAAnswer
 )
 from .document_parser import LocalDocumentParser
 from .prompts import (
@@ -116,6 +117,123 @@ class LexiguardAgent:
         )
 
         return report
+
+    def answer_question(self, file_path: str, question: str) -> GroundedQAAnswer:
+        """
+        Answers questions about a document with strict grounding (L5),
+        detects when the document is silent (L7), and refuses legal advice/enforceability (L8).
+        """
+        self.privacy_guard.start_audit()
+        self.privacy_guard.audit_checkpoint("Question Ingestion")
+        doc_data = LocalDocumentParser.read_file(file_path)
+        full_text = doc_data["full_text"]
+        q_lower = question.lower()
+
+        is_enforceability = any(w in q_lower for w in [
+            "enforceable", "valid", "legal", "illegal", "binding", "court hold", "can i sue", "upheld"
+        ])
+
+        refusal = None
+        statutory_note = None
+        suggested_counsel = None
+
+        if is_enforceability:
+            refusal = (
+                "IMPORTANT BOUNDARY (L8): Lexiguard cannot rule on whether this clause is legally enforceable, "
+                "valid, or binding. Enforceability depends on statutory provisions, state-specific tenancy/labor enactments, "
+                "and judicial precedent that can only be evaluated by a licensed advocate or attorney."
+            )
+            if "non-compete" in q_lower or "compete" in q_lower:
+                statutory_note = (
+                    "Jurisdiction context (India): Post-employment non-compete covenants are generally held void under "
+                    "Section 27 of the Indian Contract Act, 1872 (agreements in restraint of trade), subject to narrow "
+                    "exceptions (e.g. sale of goodwill). However, confidentiality and IP assignment covenants remain enforceable."
+                )
+                suggested_counsel = "Ask an employment attorney: 'Does this specific post-employment non-compete violate Section 27 of the Indian Contract Act, and can it be severed from the rest of the agreement?'"
+            elif any(w in q_lower for w in ["lease", "evict", "deposit", "landlord", "rent"]):
+                statutory_note = (
+                    "Jurisdiction context: Residential leases in India are governed by State Rent Control Acts / Model Tenancy Act "
+                    "and the Transfer of Property Act, 1882. Forfeiture of entire security deposits without proof of actual damage "
+                    "is frequently challenged as a penalty under Section 74 of the Indian Contract Act."
+                )
+                suggested_counsel = "Ask a tenancy lawyer: 'Is the 24-hour termination notice or 100% deposit forfeiture valid under the relevant State Tenancy Act?'"
+            else:
+                suggested_counsel = f"Consult a qualified advocate regarding the legal validity of: '{question}'."
+
+        # Scan text for matching content
+        sections = LocalDocumentParser.segment_clauses(doc_data)
+        best_quote = None
+        best_section = None
+
+        # Score each section based on query tokens
+        query_words = set(re.findall(r'\b\w{3,}\b', q_lower))
+        stop_words = {
+            "the", "can", "what", "does", "this", "that", "there", "about", "with", "from", 
+            "and", "under", "will", "shall", "agreement", "contract", "clause", "section", 
+            "document", "allow", "state", "say", "mention", "have", "are", "any", "lease",
+            "lessor", "lessee", "tenant", "landlord", "employer", "employee", "company",
+            "party", "parties"
+        }
+        relevant_words = query_words - stop_words
+
+        best_score = 0
+        for s in sections:
+            body_l = s.text.lower()
+            header_l = s.header.lower()
+            score = 0
+            for w in relevant_words:
+                if w in header_l:
+                    score += 4
+                if w in body_l:
+                    score += body_l.count(w)
+            if score > best_score:
+                best_score = score
+                best_section = s.header
+                best_quote = s.text.strip()
+
+        if best_score < 2:
+            best_quote = None
+            best_section = None
+
+        self.privacy_guard.end_audit(file_path)
+
+        if not best_quote:
+            return GroundedQAAnswer(
+                question=question,
+                answer=(
+                    f"DOCUMENT IS SILENT: The document contains no provisions, clauses, or mention regarding this question. "
+                    f"Because this issue is not addressed in writing, neither party's rights or liabilities are defined. "
+                    f"It is recommended to seek clarification or request an explicit written clause before signing."
+                ),
+                is_silent_in_document=True,
+                is_enforceability_question=is_enforceability,
+                refusal_statement=refusal,
+                citation=None,
+                ambiguity_or_jurisdiction_note=statutory_note,
+                suggested_counsel_question=suggested_counsel
+            )
+
+        citation = SourceCitation(
+            verbatim_quote=best_quote[:300],
+            section_reference=best_section,
+            page_number=1,
+            is_verified_in_source=best_quote[:50] in full_text
+        )
+
+        answer_text = f"Based on {best_section}: The document states: \"{best_quote[:180]}...\"."
+        if refusal:
+            answer_text += " Note that while this is what the document literally states, its legal validity or enforceability cannot be determined by this tool."
+
+        return GroundedQAAnswer(
+            question=question,
+            answer=answer_text,
+            is_silent_in_document=False,
+            is_enforceability_question=is_enforceability,
+            refusal_statement=refusal,
+            citation=citation,
+            ambiguity_or_jurisdiction_note=statutory_note,
+            suggested_counsel_question=suggested_counsel
+        )
 
     def _scan_adversarial_injections(self, text: str) -> List[str]:
         """Scans for adversarial prompt injections, jailbreaks, and conflicting overrides."""
