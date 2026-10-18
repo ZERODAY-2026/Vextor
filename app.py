@@ -360,30 +360,33 @@ with tab_triage:
             if not doc_source:
                 st.error("Please provide an agreement file or paste text before analyzing.")
             else:
-                with st.spinner(f"Ingesting & triaging with local {agent.model_name}..."):
-                    t0 = time.time()
-                    corpus = DocumentParser.parse(doc_source, is_raw_text=is_raw, file_name=doc_name)
-                    cached = vault.get_cached_document(corpus.doc_hash)
-                    cache_hit = cached is not None
+                try:
+                    with st.spinner(f"Ingesting & triaging with local {agent.model_name}..."):
+                        t0 = time.time()
+                        corpus = DocumentParser.parse(doc_source, is_raw_text=is_raw, file_name=doc_name)
+                        cached = vault.get_cached_document(corpus.doc_hash)
+                        cache_hit = cached is not None
 
-                    report = agent.triage_document(
-                        source=doc_source,
-                        is_raw_text=is_raw,
-                        session_id=st.session_state.session_id
-                    )
-                    elapsed = time.time() - t0
+                        report = agent.triage_document(
+                            source=doc_source,
+                            is_raw_text=is_raw,
+                            session_id=st.session_state.session_id
+                        )
+                        elapsed = time.time() - t0
 
-                    st.session_state.current_report = report
-                    st.session_state.current_corpus = corpus
-                    st.session_state.doc_status = {
-                        "file_name": doc_name,
-                        "file_type": corpus.metadata.get("file_type", "txt").upper(),
-                        "word_count": corpus.metadata.get("word_count", 0),
-                        "chunk_count": corpus.metadata.get("chunk_count", 0),
-                        "cache_hit": cache_hit,
-                        "latency": round(elapsed, 2)
-                    }
-                    st.rerun()
+                        st.session_state.current_report = report
+                        st.session_state.current_corpus = corpus
+                        st.session_state.doc_status = {
+                            "file_name": doc_name,
+                            "file_type": corpus.metadata.get("file_type", "txt").upper(),
+                            "word_count": corpus.metadata.get("word_count", 0),
+                            "chunk_count": corpus.metadata.get("chunk_count", 0),
+                            "cache_hit": cache_hit,
+                            "latency": round(elapsed, 2)
+                        }
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Triage Error: {str(e)}")
 
     # Document Telemetry Bar
     if st.session_state.doc_status:

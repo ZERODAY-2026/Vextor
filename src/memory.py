@@ -11,7 +11,8 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
-DEFAULT_DB_PATH = os.path.join("data", "lexiguard_vault.db")
+ROOT_DIR = Path(__file__).parent.parent.resolve()
+DEFAULT_DB_PATH = str(ROOT_DIR / "data" / "lexiguard_vault.db")
 
 
 class LocalMemoryVault:

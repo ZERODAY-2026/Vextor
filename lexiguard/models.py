@@ -46,6 +46,10 @@ class TriageClause(BaseModel):
     def plain_english_summary(self) -> str:
         return self.plain_language_summary
 
+    @property
+    def plain_english(self) -> str:
+        return self.plain_language_summary
+
 
 class SilentClauseAudit(BaseModel):
     """Audit of essential legal clauses that are conspicuously ABSENT or silent."""
@@ -53,6 +57,18 @@ class SilentClauseAudit(BaseModel):
     is_silent: bool = Field(True, description="True if the document contains no provision on this matter.")
     risk_implication: str = Field(..., description="Why silence on this topic creates exposure or ambiguity for the signing party.")
     suggested_inquiry: str = Field(..., description="What the user should ask the other party or their attorney.")
+
+    @property
+    def why_silence_is_concerning(self) -> str:
+        return self.risk_implication
+
+    @property
+    def standard_legal_norm(self) -> str:
+        return f"Standard legal safeguard requires explicit stipulation regarding {self.topic}."
+
+    @property
+    def recommended_protective_clause(self) -> str:
+        return self.suggested_inquiry
 
 
 class EscalationItem(BaseModel):
@@ -79,6 +95,10 @@ class DocumentTriageReport(BaseModel):
     metadata: DocumentMetadata
     overall_risk_rating: SeverityLevel
     executive_summary: str = Field(..., description="A plain-English high-level overview of the document's balance and key terms.")
+
+    @property
+    def summary(self) -> str:
+        return self.executive_summary
     
     # Detailed analysis sections
     clauses: List[TriageClause] = Field(default_factory=list)
@@ -133,6 +153,30 @@ class ComparisonClauseChange(BaseModel):
     revised_text_snippet: Optional[str] = None
     practical_implication: str = Field(..., description="Plain-language explanation of what this change means for the user.")
 
+    @property
+    def topic(self) -> str:
+        return self.clause_topic
+
+    @property
+    def risk_shift(self) -> str:
+        return self.risk_delta
+
+    @property
+    def original_text(self) -> str:
+        return self.original_text_snippet or "None"
+
+    @property
+    def revised_text(self) -> str:
+        return self.revised_text_snippet or "None"
+
+    @property
+    def substantive_change_explanation(self) -> str:
+        return self.practical_implication
+
+    @property
+    def text(self) -> str:
+        return self.revised_text_snippet or self.original_text_snippet or self.practical_implication
+
 
 class ContractComparisonReport(BaseModel):
     """Report comparing two versions of a contract (Semantic Redlining)."""
@@ -142,6 +186,22 @@ class ContractComparisonReport(BaseModel):
     overall_risk_shift: SeverityLevel
     stealth_concerns: List[str] = Field(default_factory=list, description="Hidden traps or altered penalties introduced in revision.")
     changes: List[ComparisonClauseChange] = Field(default_factory=list)
+
+    @property
+    def executive_summary(self) -> str:
+        return self.summary_of_changes
+
+    @property
+    def modified_clauses(self) -> List[ComparisonClauseChange]:
+        return [c for c in self.changes if c.change_type == "MODIFIED"]
+
+    @property
+    def added_clauses(self) -> List[ComparisonClauseChange]:
+        return [c for c in self.changes if c.change_type == "ADDED"]
+
+    @property
+    def removed_clauses(self) -> List[ComparisonClauseChange]:
+        return [c for c in self.changes if c.change_type == "REMOVED"]
     privacy_audit: Dict[str, Any] = Field(
         default_factory=lambda: {
             "mode": "100% On-Device Local Inference",
