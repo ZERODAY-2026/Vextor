@@ -47,8 +47,8 @@ def render_qa_answer(qa: GroundedQAAnswer):
     q_panel.add_column("Field", style="bold cyan", width=22)
     q_panel.add_column("Value", style="white")
 
-    q_panel.add_row("User Question", qa.question)
-    q_panel.add_row("Triage Response", qa.answer)
+    q_panel.add_row("User Question", Text(qa.question or "", style="white"))
+    q_panel.add_row("Triage Response", Text(qa.answer or "", style="white"))
 
     if qa.citation:
         cite_str = f"\"{qa.citation.verbatim_quote}\"\nSection: {qa.citation.section_reference or 'Unnumbered'}"
@@ -75,13 +75,14 @@ def render_comparison_dashboard(report: ContractComparisonReport):
     meta_table.add_column("Field", style="bold cyan", width=22)
     meta_table.add_column("Value", style="white")
 
-    shift_style = "bold red" if report.overall_risk_shift == SeverityLevel.HIGH_RISK else \
-                  "bold yellow" if report.overall_risk_shift == SeverityLevel.CAUTION_AMBER else "bold green"
+    shift_val = report.overall_risk_shift.value if hasattr(report.overall_risk_shift, 'value') else str(report.overall_risk_shift)
+    shift_style = "bold red" if "HIGH" in shift_val.upper() else \
+                  "bold yellow" if "CAUTION" in shift_val.upper() or "AMBER" in shift_val.upper() else "bold green"
 
-    meta_table.add_row("Original Document (A)", report.original_document)
-    meta_table.add_row("Revised Document (B)", report.revised_document)
-    meta_table.add_row("Risk Shift", Text(report.overall_risk_shift.value, style=shift_style))
-    meta_table.add_row("Summary of Revisions", report.summary_of_changes)
+    meta_table.add_row("Original Document (A)", Text(str(report.original_document), style="white"))
+    meta_table.add_row("Revised Document (B)", Text(str(report.revised_document), style="white"))
+    meta_table.add_row("Risk Shift", Text(shift_val, style=shift_style))
+    meta_table.add_row("Summary of Revisions", Text(str(report.summary_of_changes), style="white"))
 
     console.print(Panel(meta_table, title="[bold]Two-Version Contract Comparison (Semantic Diff)[/bold]", border_style="magenta", box=box.ROUNDED))
 
@@ -102,10 +103,10 @@ def render_comparison_dashboard(report: ContractComparisonReport):
         risk_style = "bold red" if ch.risk_delta == "INCREASED_RISK" else "bold green" if ch.risk_delta == "REDUCED_RISK" else "dim"
 
         diff_table.add_row(
-            ch.clause_topic,
-            Text(ch.change_type, style=type_style),
-            Text(ch.risk_delta, style=risk_style),
-            ch.practical_implication
+            Text(str(ch.clause_topic), style="bold cyan"),
+            Text(str(ch.change_type), style=type_style),
+            Text(str(ch.risk_delta), style=risk_style),
+            Text(str(ch.practical_implication), style="white")
         )
 
     console.print(diff_table)
@@ -118,15 +119,16 @@ def render_triage_dashboard(report: DocumentTriageReport):
     meta_table.add_column("Field", style="bold cyan", width=22)
     meta_table.add_column("Value", style="white")
 
-    risk_style = "bold red" if report.overall_risk_rating == SeverityLevel.HIGH_RISK else \
-                 "bold yellow" if report.overall_risk_rating == SeverityLevel.CAUTION_AMBER else "bold green"
+    risk_val = report.overall_risk_rating.value if hasattr(report.overall_risk_rating, 'value') else str(report.overall_risk_rating)
+    risk_style = "bold red" if "HIGH" in risk_val.upper() else \
+                 "bold yellow" if "CAUTION" in risk_val.upper() or "AMBER" in risk_val.upper() else "bold green"
 
-    meta_table.add_row("Document Name", report.metadata.filename)
-    meta_table.add_row("Document Category", report.metadata.detected_document_type)
-    meta_table.add_row("Identified Parties", ", ".join(report.metadata.identified_parties) or "Unspecified")
-    meta_table.add_row("Term / Effective Dates", report.metadata.effective_dates_or_term or "Unspecified")
-    meta_table.add_row("Governing Jurisdiction", report.metadata.governing_jurisdiction_stated or "Not specified")
-    meta_table.add_row("Overall Risk Level", Text(report.overall_risk_rating.value, style=risk_style))
+    meta_table.add_row("Document Name", Text(str(report.metadata.filename), style="white"))
+    meta_table.add_row("Document Category", Text(str(report.metadata.detected_document_type), style="white"))
+    meta_table.add_row("Identified Parties", Text(", ".join(report.metadata.identified_parties) or "Unspecified", style="white"))
+    meta_table.add_row("Term / Effective Dates", Text(str(report.metadata.effective_dates_or_term or "Unspecified"), style="white"))
+    meta_table.add_row("Governing Jurisdiction", Text(str(report.metadata.governing_jurisdiction_stated or "Not specified"), style="white"))
+    meta_table.add_row("Overall Risk Level", Text(risk_val, style=risk_style))
 
     console.print(Panel(meta_table, title="[bold]Document Overview & Parties[/bold]", border_style="blue", box=box.ROUNDED))
 
@@ -154,19 +156,25 @@ def render_triage_dashboard(report: DocumentTriageReport):
     clause_table.add_column("Identifiable Passage (Citation)", style="dim italic", width=34)
 
     for c in report.clauses:
-        sev_color = "red" if c.severity == SeverityLevel.HIGH_RISK else \
-                    "yellow" if c.severity == SeverityLevel.CAUTION_AMBER else \
-                    "green" if c.severity == SeverityLevel.STANDARD_LOW else "blue"
+        sev_val = c.severity.value if hasattr(c.severity, 'value') else str(c.severity)
+        sev_color = "red" if "HIGH" in sev_val.upper() else \
+                    "yellow" if "CAUTION" in sev_val.upper() or "AMBER" in sev_val.upper() else \
+                    "green" if "LOW" in sev_val.upper() or "STANDARD" in sev_val.upper() else "blue"
         
-        badge = f"[{sev_color}]{c.severity.value}[/{sev_color}]"
-        citation_text = f"\"{c.citation.verbatim_quote[:60]}...\" ({c.citation.section_reference or 'P. ' + str(c.citation.page_number)})"
+        badge = Text(sev_val, style=f"bold {sev_color}")
+        if c.citation and c.citation.verbatim_quote:
+            quote = c.citation.verbatim_quote[:60]
+            sec = c.citation.section_reference or (f"P. {c.citation.page_number}" if c.citation.page_number else "Doc")
+            citation_text = f"\"{quote}...\" ({sec})"
+        else:
+            citation_text = "Uncited"
 
         clause_table.add_row(
-            c.clause_id,
-            c.category,
+            Text(str(c.clause_id), style="bold cyan"),
+            Text(str(c.category), style="magenta"),
             badge,
-            c.plain_language_summary,
-            citation_text
+            Text(str(c.plain_language_summary), style="white"),
+            Text(citation_text, style="dim italic")
         )
 
     console.print(clause_table)
@@ -180,9 +188,9 @@ def render_triage_dashboard(report: DocumentTriageReport):
 
         for s in report.silent_clauses:
             silent_table.add_row(
-                f"❌ {s.topic}",
-                s.risk_implication,
-                s.suggested_inquiry
+                Text(f"❌ {s.topic}", style="bold yellow"),
+                Text(str(s.risk_implication), style="white"),
+                Text(str(s.suggested_inquiry), style="cyan")
             )
         console.print(silent_table)
 
@@ -196,9 +204,9 @@ def render_triage_dashboard(report: DocumentTriageReport):
         for esc in report.escalations:
             questions = "\n• " + "\n• ".join(esc.specific_questions_for_counsel)
             esc_table.add_row(
-                esc.trigger_clause,
-                esc.recommended_specialist,
-                questions
+                Text(str(esc.trigger_clause), style="bold magenta"),
+                Text(str(esc.recommended_specialist), style="green"),
+                Text(questions, style="white")
             )
         console.print(esc_table)
 

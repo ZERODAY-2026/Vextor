@@ -177,6 +177,9 @@ class ComparisonClauseChange(BaseModel):
     def text(self) -> str:
         return self.revised_text_snippet or self.original_text_snippet or self.practical_implication
 
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
 
 class ContractComparisonReport(BaseModel):
     """Report comparing two versions of a contract (Semantic Redlining)."""

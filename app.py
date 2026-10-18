@@ -17,6 +17,8 @@ ROOT_DIR = Path(__file__).parent.resolve()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from typing import Any, Dict, List, Optional
+
 from src.parser import DocumentParser, DocumentCorpus
 from src.agent import LexiguardAgent
 from src.memory import LocalMemoryVault, get_vault
@@ -27,6 +29,24 @@ from lexiguard.models import (
     DocumentTriageReport,
     ContractComparisonReport
 )
+
+
+def _safe_get_field(obj: Any, field_name: str, default: str = "") -> str:
+    """Safely retrieves a field or property from a dictionary or Pydantic model without raising AttributeError."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return str(obj.get(field_name, default))
+    val = getattr(obj, field_name, None)
+    if val is not None:
+        return str(val)
+    if hasattr(obj, "get") and callable(getattr(obj, "get")):
+        try:
+            return str(obj.get(field_name, default))
+        except Exception:
+            pass
+    return default
+
 
 # -------------------------------------------------------------
 # Streamlit Configuration & Minimalist Slate Theme CSS
@@ -518,123 +538,238 @@ with tab_triage:
                 )
 
         # =========================================================
-        # RIGHT PANE: Grounded Conversational Assistant
+        # RIGHT PANE: Grounded Conversational Assistant (ChatGPT-Style)
         # =========================================================
         with pane_right:
-            st.markdown("<h4 style='margin:0 0 8px 0; font-weight:600; color:#0F172A;'>💬 Grounded Legal Assistant</h4>", unsafe_allow_html=True)
-            st.caption("Ask questions about this agreement. Answers are strictly grounded in document text with exact passage quotes.")
-
-            # Quick Inquiry Chips
-            st.markdown("<div style='font-size:0.8rem; font-weight:600; color:#64748B; margin-bottom:4px;'>Quick Inquiries:</div>", unsafe_allow_html=True)
-            col_chip1, col_chip2 = st.columns(2)
-            q_preset = None
-            with col_chip1:
-                if st.button("🚪 Landlord entry notice?", use_container_width=True):
-                    q_preset = "Can the landlord enter the premises without notice?"
-                if st.button("⚖️ Is this enforceable in court?", use_container_width=True):
-                    q_preset = "Is this clause enforceable in court?"
-            with col_chip2:
-                if st.button("💰 Late payment penalties?", use_container_width=True):
-                    q_preset = "What is the penalty for late rent payments?"
-                if st.button("🔍 Non-compete duration? (Silence)", use_container_width=True):
-                    q_preset = "What is the duration of the non-compete clause?"
-
-            # Question Input Box
-            user_query = st.text_input(
-                "Ask a question about this agreement:",
-                value=q_preset if q_preset else "",
-                placeholder="e.g. Can the landlord enter without notice? What is the notice period?",
-                label_visibility="collapsed"
-            )
-
-            col_ask1, col_ask2 = st.columns([1, 1])
-            with col_ask1:
-                ask_pressed = st.button("🔍 Ask Assistant", type="primary", use_container_width=True)
-            with col_ask2:
-                clear_chat_pressed = st.button("🗑️ Clear Chat History", use_container_width=True)
-
-            if clear_chat_pressed:
-                vault.clear_session_history(st.session_state.session_id)
-                st.toast("Chat history cleared.", icon="🗑️")
-                st.rerun()
-
-            if (ask_pressed or q_preset) and user_query.strip():
-                corpus = st.session_state.current_corpus
-                with st.spinner(f"Synthesizing grounded answer with Gemma 2..."):
-                    ans_obj = agent.answer_question(
-                        source=corpus.raw_text,
-                        question=user_query.strip(),
-                        is_raw_text=True,
-                        session_id=st.session_state.session_id
-                    )
+            col_c1, col_c2 = st.columns([3, 1])
+            with col_c1:
+                st.markdown("<h4 style='margin:0 0 4px 0; font-weight:600; color:#0F172A;'>💬 Grounded Legal Assistant</h4>", unsafe_allow_html=True)
+                st.caption("Ask questions about this agreement. Answers are strictly grounded in document text with exact passage quotes.")
+            with col_c2:
+                if st.button("🗑️ Clear Chat", use_container_width=True, help="Clear message history for this session"):
+                    vault.clear_session_history(st.session_state.session_id)
+                    st.toast("Chat history cleared.", icon="🗑️")
                     st.rerun()
 
-            # Persistent Chat Stream from SQLite
-            chat_logs = vault.get_chat_history(session_id=st.session_state.session_id, limit=30)
+            # Quick Inquiry Chips
+            st.markdown("<div style='font-size:0.78rem; font-weight:600; color:#64748B; margin: 4px 0 6px 0;'>Quick Question Chips:</div>", unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🚪 Landlord entry notice?", use_container_width=True):
+                    st.session_state.pending_query = "Can the landlord enter the premises without notice?"
+                    st.rerun()
+                if st.button("⚖️ Is this enforceable in court?", use_container_width=True):
+                    st.session_state.pending_query = "Is this clause enforceable in court?"
+                    st.rerun()
+            with c2:
+                if st.button("💰 Late payment penalties?", use_container_width=True):
+                    st.session_state.pending_query = "What is the penalty for late rent payments?"
+                    st.rerun()
+                if st.button("🔍 Non-compete duration? (Silence)", use_container_width=True):
+                    st.session_state.pending_query = "What is the duration of the non-compete clause?"
+                    st.rerun()
 
+            # Load persistent chat records from SQLite
+            chat_logs = vault.get_chat_history(session_id=st.session_state.session_id, limit=50)
+
+            # Render Conversation Messages
             if not chat_logs:
-                st.markdown("""
-                <div style="background: #FFFFFF; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 2.5rem 1.5rem; text-align: center; color: #64748B; font-size: 0.85rem; margin-top: 1rem;">
-                    No questions asked yet.<br>Type a question or select a quick inquiry chip above.
-                </div>
-                """, unsafe_allow_html=True)
+                with st.chat_message("assistant", avatar="⚖️"):
+                    st.markdown(
+                        "Hello! I am **LexiGuard**, your privacy-first legal document assistant. "
+                        "Ask me anything about this agreement—such as notice periods, obligations, penalties, or silent clauses—and I will answer grounded directly in the text."
+                    )
             else:
-                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-                for turn in reversed(chat_logs):
-                    # User Message Bubble
-                    st.markdown(f"""
-                    <div class="bubble-user">
-                        <b>You:</b> {turn['user_query']}
-                    </div>
-                    """, unsafe_allow_html=True)
+                for turn in chat_logs:
+                    with st.chat_message("user", avatar="👤"):
+                        st.markdown(turn['user_query'])
 
-                    # Agent Message Bubble
-                    st.markdown(f"""
-                    <div class="bubble-agent">
-                        <b>LexiGuard:</b> {turn['agent_response']}
-                    """, unsafe_allow_html=True)
+                    with st.chat_message("assistant", avatar="⚖️"):
+                        st.markdown(turn['agent_response'])
 
-                    # Verified Passage Citations with Location Tags
-                    if turn['cited_passages']:
-                        for cite in turn['cited_passages']:
-                            loc = cite.get('section_reference', 'Passage')
-                            quote_txt = cite.get('verbatim_quote', '')
-                            st.markdown(f"""
-                            <div style="margin-top: 8px;">
-                                <span class="tag-location">{loc}</span>
-                                <div class="verbatim-box">
-                                    "{quote_txt}"
+                        # Verified Passage Citations
+                        if turn.get('cited_passages'):
+                            for cite in turn['cited_passages']:
+                                loc = cite.get('section_reference', 'Passage Reference')
+                                quote_txt = cite.get('verbatim_quote', '')
+                                is_verif = cite.get('is_verified_in_source', True)
+                                tag_color = "#059669" if is_verif else "#D97706"
+                                verif_label = "✓ Verbatim Grounded Passage" if is_verif else "⚠️ Paraphrased Reference"
+                                st.markdown(f"""
+                                <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-left:3px solid {tag_color}; border-radius:6px; padding:8px 12px; margin-top:8px;">
+                                    <div style="font-size:0.75rem; font-weight:600; color:{tag_color}; margin-bottom:3px;">
+                                        {verif_label} • <b>{loc}</b>
+                                    </div>
+                                    <div style="font-size:0.83rem; font-style:italic; color:#334155; line-height:1.4;">
+                                        "{quote_txt}"
+                                    </div>
                                 </div>
+                                """, unsafe_allow_html=True)
+
+                        # Silence Warning
+                        if "[DOCUMENT IS SILENT]" in turn.get('agent_response', ''):
+                            st.markdown("""
+                            <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:6px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#92400E; font-weight:500;">
+                                ⚠️ <b>Gate L7 Silence Audit:</b> This topic was not found anywhere in the agreement text.
                             </div>
                             """, unsafe_allow_html=True)
 
-                    st.markdown("</div>", unsafe_allow_html=True)
+                        # Refusal Warning
+                        if "STATUTORY REFUSAL" in turn.get('agent_response', ''):
+                            st.markdown("""
+                            <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:6px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#991B1B; font-weight:500;">
+                                🛡️ <b>Gate L8 Non-Legal-Advice Boundary:</b> Conclusive legal advice refused deterministically.
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                    # Feedback Controls (In-Context Exemplar Learning)
-                    fb1, fb2, fb3, _ = st.columns([1, 1, 1, 4])
-                    with fb1:
-                        if st.button("👍", key=f"thumb_up_{turn['id']}", help="Confirm accurate interpretation"):
-                            vault.record_exemplar(turn['user_query'], turn['agent_response'], feedback_type="thumbs_up")
-                            st.toast("Saved to adaptive exemplar memory!", icon="✅")
-                    with fb2:
-                        if st.button("👎", key=f"thumb_down_{turn['id']}", help="Flag inaccurate response"):
-                            st.toast("Feedback noted.", icon="📝")
-                    with fb3:
-                        if st.button("🔖", key=f"bookmark_{turn['id']}", help="Bookmark this clause"):
-                            vault.record_exemplar(turn['user_query'], turn['agent_response'], feedback_type="bookmark")
-                            st.toast("Bookmarked to local memory!", icon="🔖")
+                        # Inline Continuous Learning Feedback Buttons
+                        fb1, fb2, fb3, _ = st.columns([1, 1, 1, 4])
+                        with fb1:
+                            if st.button("👍", key=f"chat_thumb_up_{turn['id']}", help="Confirm accurate interpretation"):
+                                vault.record_exemplar(turn['user_query'], turn['agent_response'], feedback_type="thumbs_up")
+                                st.toast("Saved to adaptive exemplar memory!", icon="✅")
+                        with fb2:
+                            if st.button("👎", key=f"chat_thumb_down_{turn['id']}", help="Flag inaccurate response"):
+                                st.toast("Feedback noted.", icon="📝")
+                        with fb3:
+                            if st.button("🔖", key=f"chat_bookmark_{turn['id']}", help="Bookmark this clause"):
+                                vault.record_exemplar(turn['user_query'], turn['agent_response'], feedback_type="bookmark")
+                                st.toast("Bookmarked to local memory!", icon="🔖")
 
-                    st.markdown("<hr style='margin: 0.5rem 0 0.85rem 0; border: none; border-top: 1px solid #F1F5F9;' />", unsafe_allow_html=True)
+            # ChatGPT-style chat input at the bottom
+            user_typed = st.chat_input("Ask a question about this agreement...")
+            prompt_to_run = user_typed or st.session_state.pop("pending_query", None)
+
+            if prompt_to_run and prompt_to_run.strip():
+                # Determine document text
+                corpus = st.session_state.get("current_corpus")
+                source_text = None
+                if corpus and getattr(corpus, "raw_text", None):
+                    source_text = corpus.raw_text
+                elif doc_source:
+                    try:
+                        parsed_c = DocumentParser.parse(doc_source, is_raw_text=is_raw, file_name=doc_name)
+                        st.session_state.current_corpus = parsed_c
+                        source_text = parsed_c.raw_text
+                    except Exception as pe:
+                        st.error(f"Error reading document: {pe}")
+
+                if not source_text:
+                    st.warning("Please upload a contract or select a sample agreement above before asking questions.")
+                else:
+                    with st.chat_message("user", avatar="👤"):
+                        st.markdown(prompt_to_run.strip())
+                    with st.chat_message("assistant", avatar="⚖️"):
+                        with st.spinner("Synthesizing grounded answer with Gemma 2 (2B)..."):
+                            ans_obj = agent.answer_question(
+                                source=source_text,
+                                question=prompt_to_run.strip(),
+                                is_raw_text=True,
+                                session_id=st.session_state.session_id
+                            )
+                    st.rerun()
 
     else:
-        st.markdown("""
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 3.5rem 2rem; text-align: center; margin-top: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-            <div style="font-size: 1.35rem; font-weight: 600; color: #0F172A; margin-bottom: 0.5rem;">Ready to Triage Agreement</div>
-            <div style="font-size: 0.88rem; color: #64748B; max-width: 520px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-                Select a document format above (PDF, DOCX, TXT, MD, or paste text directly) and click <b>Analyze Agreement</b> to begin 100% on-device private triage.
+        pane_left, pane_right = st.columns([1, 1], gap="large")
+        with pane_left:
+            st.markdown(f"""
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 2.75rem 2rem; text-align: center; margin-top: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <div style="font-size: 1.35rem; font-weight: 700; color: #0F172A; margin-bottom: 0.5rem;">Ready to Triage Agreement</div>
+                <div style="font-size: 0.88rem; color: #64748B; max-width: 480px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+                    Selected: <b>{doc_name or 'Document'}</b><br>
+                    Click <b>🚀 Analyze Agreement</b> above for the complete 3-Tier Clause Breakdown & Silent Clause Audit.
+                </div>
+                <div style="background: #F1F5F9; border-radius: 8px; padding: 14px 18px; font-size: 0.83rem; color: #334155; text-align: left; line-height: 1.45;">
+                    💡 <b>Proactive Assistant:</b> You can already start asking questions in the <b>Grounded Legal Assistant</b> on the right! LexiGuard reads and answers strictly from the document on-device without waiting for full triage.
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+
+        with pane_right:
+            col_c1, col_c2 = st.columns([3, 1])
+            with col_c1:
+                st.markdown("<h4 style='margin:0 0 4px 0; font-weight:600; color:#0F172A;'>💬 Grounded Legal Assistant</h4>", unsafe_allow_html=True)
+                st.caption("Ask questions about this agreement. Answers are strictly grounded in document text with exact passage quotes.")
+            with col_c2:
+                if st.button("🗑️ Clear Chat", key="clear_chat_empty", use_container_width=True, help="Clear message history"):
+                    vault.clear_session_history(st.session_state.session_id)
+                    st.toast("Chat history cleared.", icon="🗑️")
+                    st.rerun()
+
+            # Quick Inquiry Chips
+            st.markdown("<div style='font-size:0.78rem; font-weight:600; color:#64748B; margin: 4px 0 6px 0;'>Quick Question Chips:</div>", unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🚪 Landlord entry notice?", key="chip_empty_1", use_container_width=True):
+                    st.session_state.pending_query = "Can the landlord enter the premises without notice?"
+                    st.rerun()
+                if st.button("⚖️ Is this enforceable in court?", key="chip_empty_2", use_container_width=True):
+                    st.session_state.pending_query = "Is this clause enforceable in court?"
+                    st.rerun()
+            with c2:
+                if st.button("💰 Late payment penalties?", key="chip_empty_3", use_container_width=True):
+                    st.session_state.pending_query = "What is the penalty for late rent payments?"
+                    st.rerun()
+                if st.button("🔍 Non-compete duration? (Silence)", key="chip_empty_4", use_container_width=True):
+                    st.session_state.pending_query = "What is the duration of the non-compete clause?"
+                    st.rerun()
+
+            chat_logs = vault.get_chat_history(session_id=st.session_state.session_id, limit=50)
+            if not chat_logs:
+                with st.chat_message("assistant", avatar="⚖️"):
+                    st.markdown(
+                        f"Hello! I am **LexiGuard**, your on-device legal assistant. "
+                        f"I can answer questions regarding **{doc_name or 'the selected document'}** grounded strictly in the source text. "
+                        f"Try clicking a quick question chip above or typing a question below!"
+                    )
+            else:
+                for turn in chat_logs:
+                    with st.chat_message("user", avatar="👤"):
+                        st.markdown(turn['user_query'])
+                    with st.chat_message("assistant", avatar="⚖️"):
+                        st.markdown(turn['agent_response'])
+                        if turn.get('cited_passages'):
+                            for cite in turn['cited_passages']:
+                                loc = cite.get('section_reference', 'Passage Reference')
+                                quote_txt = cite.get('verbatim_quote', '')
+                                st.markdown(f"""
+                                <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-left:3px solid #059669; border-radius:6px; padding:8px 12px; margin-top:8px;">
+                                    <div style="font-size:0.75rem; font-weight:600; color:#059669; margin-bottom:3px;">
+                                        ✓ Verbatim Grounded Passage • <b>{loc}</b>
+                                    </div>
+                                    <div style="font-size:0.83rem; font-style:italic; color:#334155; line-height:1.4;">
+                                        "{quote_txt}"
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+            user_typed = st.chat_input("Ask a question about this agreement...", key="chat_input_empty")
+            prompt_to_run = user_typed or st.session_state.pop("pending_query", None)
+
+            if prompt_to_run and prompt_to_run.strip():
+                source_text = None
+                if doc_source:
+                    try:
+                        parsed_c = DocumentParser.parse(doc_source, is_raw_text=is_raw, file_name=doc_name)
+                        st.session_state.current_corpus = parsed_c
+                        source_text = parsed_c.raw_text
+                    except Exception as pe:
+                        st.error(f"Error reading document: {pe}")
+
+                if not source_text:
+                    st.warning("Please upload a contract or select a sample agreement above before asking questions.")
+                else:
+                    with st.chat_message("user", avatar="👤"):
+                        st.markdown(prompt_to_run.strip())
+                    with st.chat_message("assistant", avatar="⚖️"):
+                        with st.spinner("Synthesizing grounded answer with Gemma 2 (2B)..."):
+                            ans_obj = agent.answer_question(
+                                source=source_text,
+                                question=prompt_to_run.strip(),
+                                is_raw_text=True,
+                                session_id=st.session_state.session_id
+                            )
+                    st.rerun()
 
 
 # =============================================================
@@ -663,39 +798,45 @@ with tab_diff:
 
     if st.session_state.diff_report:
         drep: ContractComparisonReport = st.session_state.diff_report
+        shift_val = _safe_get_field(drep, "overall_risk_shift", "HIGH_RISK")
+        exec_sum = _safe_get_field(drep, "executive_summary", _safe_get_field(drep, "summary_of_changes", "Comparison completed."))
 
         # Summary Banner
         st.markdown(f"""
         <div class="clean-card" style="border-left: 4px solid #D97706; margin-top: 1rem;">
             <div style="font-weight: 700; color: #92400E; font-size: 1.05rem;">
-                ⚠️ Net Risk Shift: {drep.overall_risk_shift}
+                ⚠️ Net Risk Shift: {shift_val}
             </div>
             <div style="font-size: 0.88rem; color: #334155; margin-top: 6px; line-height: 1.5;">
-                {drep.executive_summary}
+                {exec_sum}
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+        mod_clauses = getattr(drep, "modified_clauses", [c for c in getattr(drep, "changes", []) if getattr(c, "change_type", "") == "MODIFIED"])
+        add_clauses = getattr(drep, "added_clauses", [c for c in getattr(drep, "changes", []) if getattr(c, "change_type", "") == "ADDED"])
+        rem_clauses = getattr(drep, "removed_clauses", [c for c in getattr(drep, "changes", []) if getattr(c, "change_type", "") == "REMOVED"])
 
         # Diff Metric Counters
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
             st.markdown(f"""
             <div class="metric-box">
-                <div class="metric-value">{len(drep.modified_clauses)}</div>
+                <div class="metric-value">{len(mod_clauses)}</div>
                 <div class="metric-label">Modified Clauses</div>
             </div>
             """, unsafe_allow_html=True)
         with col_m2:
             st.markdown(f"""
             <div class="metric-box">
-                <div class="metric-value">{len(drep.added_clauses)}</div>
+                <div class="metric-value">{len(add_clauses)}</div>
                 <div class="metric-label">Added Restrictions</div>
             </div>
             """, unsafe_allow_html=True)
         with col_m3:
             st.markdown(f"""
             <div class="metric-box">
-                <div class="metric-value">{len(drep.removed_clauses)}</div>
+                <div class="metric-value">{len(rem_clauses)}</div>
                 <div class="metric-label">Removed Protections</div>
             </div>
             """, unsafe_allow_html=True)
@@ -703,30 +844,39 @@ with tab_diff:
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
         # Modified Clauses
-        if drep.modified_clauses:
+        if mod_clauses:
             st.markdown("<h5 style='font-weight:600; color:#1E293B;'>Substantive Clause Modifications</h5>", unsafe_allow_html=True)
-            for mc in drep.modified_clauses:
-                with st.expander(f"⚠️ {mc.topic} — Shift: {mc.risk_shift}"):
+            for mc in mod_clauses:
+                topic = _safe_get_field(mc, "topic", _safe_get_field(mc, "clause_topic", "Modified Clause"))
+                risk_shift = _safe_get_field(mc, "risk_shift", _safe_get_field(mc, "risk_delta", "MODIFIED"))
+                orig_text = _safe_get_field(mc, "original_text", _safe_get_field(mc, "original_text_snippet", "None"))
+                rev_text = _safe_get_field(mc, "revised_text", _safe_get_field(mc, "revised_text_snippet", "None"))
+                delta = _safe_get_field(mc, "substantive_change_explanation", _safe_get_field(mc, "practical_implication", ""))
+                with st.expander(f"⚠️ {topic} — Shift: {risk_shift}"):
                     c1, c2 = st.columns(2)
                     with c1:
                         st.markdown("**Original Text (Draft A):**")
-                        st.code(mc.original_text, language="text")
+                        st.code(orig_text, language="text")
                     with c2:
                         st.markdown("**Revised Text (Draft B):**")
-                        st.code(mc.revised_text, language="text")
-                    st.markdown(f"**Semantic Delta:** {mc.substantive_change_explanation}")
+                        st.code(rev_text, language="text")
+                    st.markdown(f"**Semantic Delta:** {delta}")
 
         # Added Clauses
-        if drep.added_clauses:
+        if add_clauses:
             st.markdown("<h5 style='font-weight:600; color:#1E293B; margin-top: 1rem;'>Newly Injected Clauses</h5>", unsafe_allow_html=True)
-            for ac in drep.added_clauses:
-                st.warning(f"**{ac.get('topic', 'New Clause')}:** {ac.get('text', '')}")
+            for ac in add_clauses:
+                ac_topic = _safe_get_field(ac, "topic", _safe_get_field(ac, "clause_topic", "New Clause"))
+                ac_text = _safe_get_field(ac, "text", _safe_get_field(ac, "revised_text_snippet", _safe_get_field(ac, "practical_implication", "")))
+                st.warning(f"**{ac_topic}:** {ac_text}")
 
         # Removed Clauses
-        if drep.removed_clauses:
+        if rem_clauses:
             st.markdown("<h5 style='font-weight:600; color:#1E293B; margin-top: 1rem;'>Removed Protections</h5>", unsafe_allow_html=True)
-            for rc in drep.removed_clauses:
-                st.error(f"**Deleted Safeguard:** {rc.get('topic', 'Removed Clause')} — {rc.get('text', '')}")
+            for rc in rem_clauses:
+                rc_topic = _safe_get_field(rc, "topic", _safe_get_field(rc, "clause_topic", "Removed Clause"))
+                rc_text = _safe_get_field(rc, "text", _safe_get_field(rc, "original_text_snippet", _safe_get_field(rc, "practical_implication", "")))
+                st.error(f"**Deleted Safeguard:** {rc_topic} — {rc_text}")
 
 
 # =============================================================

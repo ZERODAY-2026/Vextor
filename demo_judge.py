@@ -56,7 +56,7 @@ def run_demo():
     guard = PrivacyGuard()
     initial_check = guard.check_active_connections()
     console.print(f"  • Localhost Ollama Server: [bold green]Active (http://localhost:11434)[/bold green]")
-    console.print(f"  • Active Gemma Model:     [bold yellow]{active_model}[/yellow]")
+    console.print(f"  • Active Gemma Model:     [bold yellow]{active_model}[/bold yellow]")
     console.print(f"  • Remote Outbound Sockets: [bold green]{len(initial_check['remote_outbound'])}[/bold green] (PASSED - Zero external leaks)")
     console.print(f"  • Localhost Loopback Only: [cyan]{len(initial_check['loopback'])}[/cyan] sockets")
 
